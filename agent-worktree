@@ -80,6 +80,8 @@ install_deps() {
   fi
 }
 
+SCRIPT_URL="https://raw.githubusercontent.com/Mona-kecil/agent-worktree/main/agent-worktree"
+
 usage() {
   echo "Usage: $0 <command> [options]"
   echo ""
@@ -88,7 +90,20 @@ usage() {
   echo "  list            List all agent worktrees"
   echo "  remove <name>   Remove a worktree"
   echo "  clean           Remove all agent worktrees"
+  echo "  upgrade         Update to the latest version"
   echo ""
+}
+
+upgrade() {
+  local install_path=$(command -v agent-worktree)
+  if [ -z "$install_path" ]; then
+    install_path="$HOME/.local/bin/agent-worktree"
+  fi
+  
+  echo "Upgrading agent-worktree..."
+  curl -fsSL "$SCRIPT_URL" -o "$install_path"
+  chmod +x "$install_path"
+  echo "✅ Updated to latest version"
 }
 
 create_worktree() {
@@ -242,6 +257,9 @@ case "${1:-}" in
     ;;
   clean)
     clean_worktrees
+    ;;
+  upgrade)
+    upgrade
     ;;
   *)
     usage
