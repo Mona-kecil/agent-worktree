@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+# Agent Worktree Manager
+# Creates isolated git worktrees for agentic development
+# Compatible with Linux and macOS
+
+set -e
+
+WORKTREES_DIR="$HOME/.agent-worktrees"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+REPO_NAME="$(basename "$REPO_ROOT")"
+
+# Cross-platform stat for modification time
+get_created_time() {
+  local target="$1"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    stat -f "%Sm" -t "%Y-%m-%d %H:%M" "$target" 2>/dev/null || echo "unknown"
+  else
+    stat -c "%y" "$target" 2>/dev/null | cut -d'.' -f1 | cut -d' ' -f1,2 || echo "unknown"
+  fi
+}
+
+# Cross-platform substring (first 7 chars)
+short_hash() {
+  echo "$1" | cut -c1-7
+}
+
+# Install dependencies using ni (auto-detects package manager)
+install_deps() {
+  local dir="$1"
+  cd "$dir"
+  
+  if command -v ni &> /dev/null; then
+    ni
+  else
+    echo ""
+    echo "⚠️  'ni' is not installed. Install it for automatic package manager detection:"
+    echo "    npm i -g @antfu/ni"
+    echo "    # or: brew install ni"
+    echo ""
+    echo "Skipping dependency installation. Run manually in the worktree."
+  fi
+}
+
+usage() {
+  echo "Usage: $0 <command> [options]"
+  echo ""
+  echo "Commands:"
+  echo "  create [name]   Create a new worktree for agent work"
+  echo "  list            List all agent worktrees"
+  echo "  remove <name>   Remove a worktree"
+  echo "  clean           Remove all agent worktrees"
+  echo ""
+}
+
+create_worktree() {
+  local name="${1:-agent-$(date +%Y%m%d-%H%M%S)}"
+  local branch="agent/${name}"
+  
+  # Create worktrees directory if it doesn't exist
+  mkdir -p "$WORKTREES_DIR"
+  
+  local abs_path="${WORKTREES_DIR}/${REPO_NAME}-${name}"
+  
+  echo "Creating worktree: $name"
+  echo "  Branch: $branch"
+  echo "  Path: $abs_path"
+  
+  # Create new branch and worktree
+  git worktree add -b "$branch" "$abs_path" HEAD
+  
+  # Install dependencies in the new worktree
+  echo ""
+  echo "Installing dependencies..."
+  install_deps "$abs_path"
+  
+  echo ""
+  echo "✅ Worktree ready!"
+  echo ""
+  echo "To work in this worktree:"
+  echo "  cd $abs_path"
+  echo ""
+  echo "When done, merge or cherry-pick changes back to main:"
+  echo "  git checkout main"
+  echo "  git merge $branch"
+  echo ""
+  echo "Then clean up:"
+  echo "  $0 remove $name"
+}
+
+list_worktrees() {
+  local found=0
+  
+  echo ""
+  echo "┌─────────────────────────────────────────────────────────────────────────────┐"
+  echo "│  Agent Worktrees                                                            │"
+  echo "├─────────────────────────────────────────────────────────────────────────────┤"
+  
+  while IFS= read -r line; do
+    local path=$(echo "$line" | awk '{print $1}')
+    local commit=$(echo "$line" | awk '{print $2}')
+    local branch=$(echo "$line" | awk '{print $3}' | tr -d '[]')
+    
+    if [[ "$branch" == agent/* ]]; then
+      found=1
+      local name="${branch#agent/}"
+      
+      # Check for uncommitted changes
+      local status=$(git -C "$path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+      local changes=""
+      if [ "$status" -gt 0 ]; then
+        changes=" (${status} uncommitted)"
+      fi
+      
+      # Get worktree creation time
+      local created=$(get_created_time "$path")
+      
+      # Get commits ahead of base (main/HEAD when created)
+      local commits_ahead=$(git -C "$path" rev-list --count HEAD ^"$commit" 2>/dev/null || echo "0")
+      local activity=""
+      if [ "$commits_ahead" -gt 0 ]; then
+        local last_commit_time=$(git -C "$path" log -1 --format="%cr" 2>/dev/null)
+        activity="$commits_ahead commit(s), last $last_commit_time${changes}"
+      else
+        activity="No commits yet${changes}"
+      fi
+      
+      echo "│                                                                             │"
+      printf "│  %-73s │\n" "📁 $name"
+      printf "│     %-69s │\n" "Branch:   $branch"
+      printf "│     %-69s │\n" "Path:     $path"
+      printf "│     %-69s │\n" "Created:  $created"
+      printf "│     %-69s │\n" "Activity: $activity"
+      printf "│     %-69s │\n" "Based on: $(short_hash "$commit") (commit when worktree was created)"
+    fi
+  done < <(git worktree list)
+  
+  if [ "$found" -eq 0 ]; then
+    echo "│                                                                             │"
+    echo "│  No agent worktrees found.                                                  │"
+    echo "│  Create one with: agent-worktree create <name>                               │"
+  fi
+  
+  echo "│                                                                             │"
+  echo "└─────────────────────────────────────────────────────────────────────────────┘"
+  echo ""
+}
+
+remove_worktree() {
+  local name="$1"
+  if [ -z "$name" ]; then
+    echo "Error: Please specify worktree name"
+    exit 1
+  fi
+  
+  local abs_path="${WORKTREES_DIR}/${REPO_NAME}-${name}"
+  local branch="agent/${name}"
+  
+  echo "Removing worktree: $name"
+  git worktree remove "$abs_path" --force 2>/dev/null || true
+  git branch -D "$branch" 2>/dev/null || true
+  echo "✅ Removed"
+}
+
+clean_worktrees() {
+  echo "Cleaning all agent worktrees..."
+  git worktree list | grep "agent/" | while read -r line; do
+    path=$(echo "$line" | awk '{print $1}')
+    git worktree remove "$path" --force 2>/dev/null || true
+  done
+  # Delete agent branches (compatible with both Linux and macOS)
+  git branch | grep "agent/" | while read -r branch; do
+    git branch -D "$branch" 2>/dev/null || true
+  done
+  rm -rf "$WORKTREES_DIR" 2>/dev/null || true
+  echo "✅ Cleaned"
+}
+
+# Main
+case "${1:-}" in
+  create)
+    create_worktree "$2"
+    ;;
+  list)
+    list_worktrees
+    ;;
+  remove)
+    remove_worktree "$2"
+    ;;
+  clean)
+    clean_worktrees
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
