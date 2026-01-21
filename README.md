@@ -77,6 +77,24 @@ Uses [ni](https://github.com/antfu/ni) to detect your package manager (bun/pnpm/
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### ✅ Merge Status Detection
+Instantly see which worktrees have been merged and are safe to remove:
+
+```
+Status:   ✅ MERGED - safe to remove
+```
+
+### 🔄 Self-Update
+Keep your installation up to date:
+
+```bash
+# Check current version
+agent-worktree version
+
+# Update to latest
+agent-worktree upgrade
+```
+
 ### 🐧 Cross-Platform
 Works on both Linux and macOS with OS-specific implementations where needed.
 
