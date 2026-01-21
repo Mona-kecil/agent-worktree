@@ -26,7 +26,7 @@ if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$RC_FILE" 2>/dev/null; then
 fi
 
 echo ""
-echo "✅ Installed! Run 'source $RC_FILE' or open a new terminal."
+echo "✅ Installed!"
 echo ""
 echo "Usage:"
 echo "  agent-worktree create <name>"
