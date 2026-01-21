@@ -24,6 +24,45 @@ short_hash() {
   echo "$1" | cut -c1-7
 }
 
+# Copy environment files from source to destination
+copy_env_files() {
+  local src="$1"
+  local dest="$2"
+  local copied=0
+  
+  # Common env file patterns
+  local env_patterns=(
+    ".env"
+    ".env.local"
+    ".env.development"
+    ".env.development.local"
+    ".env.test"
+    ".env.test.local"
+    ".env.production"
+    ".env.production.local"
+  )
+  
+  for pattern in "${env_patterns[@]}"; do
+    # Find env files in root and common subdirectories
+    while IFS= read -r -d '' file; do
+      local relative="${file#$src/}"
+      local dest_file="$dest/$relative"
+      local dest_dir=$(dirname "$dest_file")
+      
+      mkdir -p "$dest_dir"
+      cp "$file" "$dest_file"
+      ((copied++))
+      echo "  📋 Copied: $relative"
+    done < <(find "$src" -maxdepth 3 -name "$pattern" -type f -print0 2>/dev/null)
+  done
+  
+  if [ "$copied" -eq 0 ]; then
+    echo "  No env files found to copy"
+  else
+    echo "  ✅ Copied $copied env file(s)"
+  fi
+}
+
 # Install dependencies using ni (auto-detects package manager)
 install_deps() {
   local dir="$1"
@@ -67,6 +106,11 @@ create_worktree() {
   
   # Create new branch and worktree
   git worktree add -b "$branch" "$abs_path" HEAD
+  
+  # Copy environment files
+  echo ""
+  echo "Copying environment files..."
+  copy_env_files "$REPO_ROOT" "$abs_path"
   
   # Install dependencies in the new worktree
   echo ""

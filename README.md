@@ -5,6 +5,7 @@ Git worktree manager for agentic development. Creates isolated worktrees for AI 
 ## Features
 
 - **Isolated environments** – Each agent gets its own worktree with a dedicated branch
+- **Auto env file copy** – Detects and copies `.env*` files (up to 3 levels deep)
 - **Auto dependency install** – Uses [ni](https://github.com/antfu/ni) to detect and run the right package manager
 - **Cross-platform** – Works on Linux and macOS
 - **Easy cleanup** – Remove individual worktrees or clean all at once
