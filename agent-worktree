@@ -5,6 +5,8 @@
 
 set -e
 
+VERSION="1.0.0"
+
 WORKTREES_DIR="$HOME/.agent-worktrees"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REPO_NAME="$(basename "$REPO_ROOT")"
@@ -91,7 +93,22 @@ usage() {
   echo "  remove <name>   Remove a worktree"
   echo "  clean           Remove all agent worktrees"
   echo "  upgrade         Update to the latest version"
+  echo "  version         Show current version"
   echo ""
+}
+
+check_update() {
+  local remote_version=$(curl -fsSL "$SCRIPT_URL" 2>/dev/null | grep '^VERSION=' | head -1 | cut -d'"' -f2)
+  if [ -z "$remote_version" ]; then
+    echo ""
+    return
+  fi
+  
+  if [ "$remote_version" != "$VERSION" ]; then
+    echo "$remote_version"
+  else
+    echo ""
+  fi
 }
 
 upgrade() {
@@ -100,10 +117,24 @@ upgrade() {
     install_path="$HOME/.local/bin/agent-worktree"
   fi
   
-  echo "Upgrading agent-worktree..."
+  echo "Current version: $VERSION"
+  local remote_version=$(curl -fsSL "$SCRIPT_URL" 2>/dev/null | grep '^VERSION=' | head -1 | cut -d'"' -f2)
+  
+  if [ -z "$remote_version" ]; then
+    echo "Could not check remote version"
+    return 1
+  fi
+  
+  if [ "$remote_version" = "$VERSION" ]; then
+    echo "Already on latest version"
+    return 0
+  fi
+  
+  echo "New version available: $remote_version"
+  echo "Upgrading..."
   curl -fsSL "$SCRIPT_URL" -o "$install_path"
   chmod +x "$install_path"
-  echo "✅ Updated to latest version"
+  echo "✅ Updated to $remote_version"
 }
 
 create_worktree() {
@@ -260,6 +291,13 @@ case "${1:-}" in
     ;;
   upgrade)
     upgrade
+    ;;
+  version|-v|--version)
+    echo "agent-worktree v$VERSION"
+    new_version=$(check_update)
+    if [ -n "$new_version" ]; then
+      echo "Update available: v$new_version (run 'agent-worktree upgrade')"
+    fi
     ;;
   *)
     usage
