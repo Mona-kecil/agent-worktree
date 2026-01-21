@@ -168,6 +168,13 @@ list_worktrees() {
         activity="No commits yet${changes}"
       fi
       
+      # Check if branch has been merged into main
+      local merged=""
+      local main_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+      if git branch --merged "$main_branch" 2>/dev/null | grep -q "$branch"; then
+        merged="✅ MERGED - safe to remove"
+      fi
+      
       echo "│                                                                             │"
       printf "│  %-73s │\n" "📁 $name"
       printf "│     %-69s │\n" "Branch:   $branch"
@@ -175,6 +182,9 @@ list_worktrees() {
       printf "│     %-69s │\n" "Created:  $created"
       printf "│     %-69s │\n" "Activity: $activity"
       printf "│     %-69s │\n" "Based on: $(short_hash "$commit") (commit when worktree was created)"
+      if [ -n "$merged" ]; then
+        printf "│     %-69s │\n" "Status:   $merged"
+      fi
     fi
   done < <(git worktree list)
   
