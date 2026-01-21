@@ -13,13 +13,7 @@ Git worktree manager for agentic development. Creates isolated worktrees for AI 
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Mona-kecil/agent-worktree/main/agent-worktree -o ~/.local/bin/agent-worktree && chmod +x ~/.local/bin/agent-worktree
-```
-
-Make sure `~/.local/bin` is in your PATH:
-
-```bash
-export PATH="$HOME/.local/bin:$PATH"
+curl -fsSL https://raw.githubusercontent.com/Mona-kecil/agent-worktree/main/install.sh | bash
 ```
 
 ## Usage
