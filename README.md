@@ -16,6 +16,9 @@ That's it. One command, ready to use.
 # Create a new worktree for agent work
 agent-worktree create my-feature
 
+# Create a worktree from an existing branch
+agent-worktree create my-feature --branch existing-branch
+
 # List all agent worktrees (for current repo)
 agent-worktree list
 
@@ -30,6 +33,12 @@ agent-worktree clean
 
 ### 🔀 Isolated Environments
 Each agent gets its own worktree with a dedicated `agent/<name>` branch. No more merge conflicts when multiple agents work simultaneously.
+
+Use `--branch` (or `-b`) to work on an existing branch instead of creating a new one:
+
+```bash
+agent-worktree create hotfix --branch production-fix
+```
 
 ### 📁 Multi-Repo Support
 Worktrees are namespaced by repository, so you can use this across all your projects:
