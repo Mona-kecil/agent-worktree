@@ -88,12 +88,13 @@ usage() {
   echo "Usage: $0 <command> [options]"
   echo ""
   echo "Commands:"
-  echo "  create [name]   Create a new worktree for agent work"
-  echo "  list            List all agent worktrees"
-  echo "  remove <name>   Remove a worktree"
-  echo "  clean           Remove all agent worktrees"
-  echo "  upgrade         Update to the latest version"
-  echo "  version         Show current version"
+  echo "  create [name] [--branch <branch>]   Create a new worktree for agent work"
+  echo "                                      --branch: use existing branch instead of creating agent/<name>"
+  echo "  list                                List all agent worktrees"
+  echo "  remove <name>                       Remove a worktree"
+  echo "  clean                               Remove all agent worktrees"
+  echo "  upgrade                             Update to the latest version"
+  echo "  version                             Show current version"
   echo ""
 }
 
@@ -138,20 +139,55 @@ upgrade() {
 }
 
 create_worktree() {
-  local name="${1:-agent-$(date +%Y%m%d-%H%M%S)}"
-  local branch="agent/${name}"
-  
+  local name=""
+  local existing_branch=""
+
+  # Parse arguments
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --branch|-b)
+        existing_branch="$2"
+        shift 2
+        ;;
+      *)
+        if [ -z "$name" ]; then
+          name="$1"
+        fi
+        shift
+        ;;
+    esac
+  done
+
+  # Default name if not provided
+  name="${name:-agent-$(date +%Y%m%d-%H%M%S)}"
+
   # Create worktrees directory if it doesn't exist
   mkdir -p "$WORKTREES_DIR"
-  
+
   local abs_path="${WORKTREES_DIR}/${REPO_NAME}-${name}"
-  
-  echo "Creating worktree: $name"
-  echo "  Branch: $branch"
-  echo "  Path: $abs_path"
-  
-  # Create new branch and worktree
-  git worktree add -b "$branch" "$abs_path" HEAD
+
+  if [ -n "$existing_branch" ]; then
+    # Use existing branch
+    echo "Creating worktree: $name"
+    echo "  Branch: $existing_branch (existing)"
+    echo "  Path: $abs_path"
+
+    # Check if branch exists
+    if ! git show-ref --verify --quiet "refs/heads/$existing_branch"; then
+      echo "Error: Branch '$existing_branch' does not exist"
+      exit 1
+    fi
+
+    git worktree add "$abs_path" "$existing_branch"
+  else
+    # Create new agent branch
+    local branch="agent/${name}"
+    echo "Creating worktree: $name"
+    echo "  Branch: $branch"
+    echo "  Path: $abs_path"
+
+    git worktree add -b "$branch" "$abs_path" HEAD
+  fi
   
   # Copy environment files
   echo ""
@@ -179,20 +215,29 @@ create_worktree() {
 
 list_worktrees() {
   local found=0
-  
+
   echo ""
   echo "┌─────────────────────────────────────────────────────────────────────────────┐"
   echo "│  Agent Worktrees                                                            │"
   echo "├─────────────────────────────────────────────────────────────────────────────┤"
-  
+
   while IFS= read -r line; do
     local path=$(echo "$line" | awk '{print $1}')
     local commit=$(echo "$line" | awk '{print $2}')
     local branch=$(echo "$line" | awk '{print $3}' | tr -d '[]')
-    
-    if [[ "$branch" == agent/* ]]; then
+
+    # Check if worktree is in agent-worktrees directory OR has agent/* branch
+    if [[ "$path" == "$WORKTREES_DIR"/* ]] || [[ "$branch" == agent/* ]]; then
       found=1
-      local name="${branch#agent/}"
+      # Extract name from path or branch
+      local name
+      if [[ "$path" == "$WORKTREES_DIR"/* ]]; then
+        # Extract name from path: ~/.agent-worktrees/repo-name -> name
+        name=$(basename "$path")
+        name="${name#${REPO_NAME}-}"
+      else
+        name="${branch#agent/}"
+      fi
       
       # Check for uncommitted changes
       local status=$(git -C "$path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
@@ -278,7 +323,8 @@ clean_worktrees() {
 # Main
 case "${1:-}" in
   create)
-    create_worktree "$2"
+    shift
+    create_worktree "$@"
     ;;
   list)
     list_worktrees
