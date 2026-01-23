@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION="1.0.1"
+VERSION="1.1.0"
 
 WORKTREES_DIR="$HOME/.agent-worktrees"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -45,7 +45,7 @@ copy_env_files() {
   )
   
   for pattern in "${env_patterns[@]}"; do
-    # Find env files in root and common subdirectories
+    # Find env files recursively (exclude node_modules, .git, dist, build)
     while IFS= read -r -d '' file; do
       local relative="${file#$src/}"
       local dest_file="$dest/$relative"
@@ -55,7 +55,14 @@ copy_env_files() {
       cp "$file" "$dest_file"
       ((copied++))
       echo "  📋 Copied: $relative"
-    done < <(find "$src" -maxdepth 3 -name "$pattern" -type f -print0 2>/dev/null)
+    done < <(find "$src" -name "$pattern" -type f \
+      -not -path "*/node_modules/*" \
+      -not -path "*/.git/*" \
+      -not -path "*/dist/*" \
+      -not -path "*/build/*" \
+      -not -path "*/.next/*" \
+      -not -path "*/.turbo/*" \
+      -print0 2>/dev/null)
   done
   
   if [ "$copied" -eq 0 ]; then
