@@ -5,7 +5,7 @@
 
 set -e
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 
 WORKTREES_DIR="$HOME/.agent-worktrees"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -53,7 +53,7 @@ copy_env_files() {
       
       mkdir -p "$dest_dir"
       cp "$file" "$dest_file"
-      ((copied++))
+      ((++copied))
       echo "  📋 Copied: $relative"
     done < <(find "$src" -name "$pattern" -type f \
       -not -path "*/node_modules/*" \
