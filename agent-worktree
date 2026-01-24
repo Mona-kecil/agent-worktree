@@ -5,7 +5,9 @@
 
 set -e
 
-VERSION="1.1.1"
+# NOTE: If you make any changes to this file, please bump the version below using semantic versioning
+# (major.minor.patch - e.g., 1.1.1 -> 1.1.2 for patches, 1.2.0 for minor, 2.0.0 for major)
+VERSION="1.1.2"
 
 WORKTREES_DIR="$HOME/.agent-worktrees"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -31,7 +33,7 @@ copy_env_files() {
   local src="$1"
   local dest="$2"
   local copied=0
-  
+
   # Common env file patterns
   local env_patterns=(
     ".env"
@@ -43,14 +45,14 @@ copy_env_files() {
     ".env.production"
     ".env.production.local"
   )
-  
+
   for pattern in "${env_patterns[@]}"; do
     # Find env files recursively (exclude node_modules, .git, dist, build)
     while IFS= read -r -d '' file; do
       local relative="${file#$src/}"
       local dest_file="$dest/$relative"
       local dest_dir=$(dirname "$dest_file")
-      
+
       mkdir -p "$dest_dir"
       cp "$file" "$dest_file"
       ((++copied))
@@ -64,7 +66,7 @@ copy_env_files() {
       -not -path "*/.turbo/*" \
       -print0 2>/dev/null)
   done
-  
+
   if [ "$copied" -eq 0 ]; then
     echo "  No env files found to copy"
   else
@@ -76,8 +78,8 @@ copy_env_files() {
 install_deps() {
   local dir="$1"
   cd "$dir"
-  
-  if command -v ni &> /dev/null; then
+
+  if command -v ni &>/dev/null; then
     ni
   else
     echo ""
@@ -111,7 +113,7 @@ check_update() {
     echo ""
     return
   fi
-  
+
   if [ "$remote_version" != "$VERSION" ]; then
     echo "$remote_version"
   else
@@ -124,20 +126,20 @@ upgrade() {
   if [ -z "$install_path" ]; then
     install_path="$HOME/.local/bin/agent-worktree"
   fi
-  
+
   echo "Current version: $VERSION"
   local remote_version=$(curl -fsSL "$SCRIPT_URL" 2>/dev/null | grep '^VERSION=' | head -1 | cut -d'"' -f2)
-  
+
   if [ -z "$remote_version" ]; then
     echo "Could not check remote version"
     return 1
   fi
-  
+
   if [ "$remote_version" = "$VERSION" ]; then
     echo "Already on latest version"
     return 0
   fi
-  
+
   echo "New version available: $remote_version"
   echo "Upgrading..."
   curl -fsSL "$SCRIPT_URL" -o "$install_path"
@@ -152,16 +154,16 @@ create_worktree() {
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --branch|-b)
-        existing_branch="$2"
-        shift 2
-        ;;
-      *)
-        if [ -z "$name" ]; then
-          name="$1"
-        fi
-        shift
-        ;;
+    --branch | -b)
+      existing_branch="$2"
+      shift 2
+      ;;
+    *)
+      if [ -z "$name" ]; then
+        name="$1"
+      fi
+      shift
+      ;;
     esac
   done
 
@@ -195,17 +197,17 @@ create_worktree() {
 
     git worktree add -b "$branch" "$abs_path" HEAD
   fi
-  
+
   # Copy environment files
   echo ""
   echo "Copying environment files..."
   copy_env_files "$REPO_ROOT" "$abs_path"
-  
+
   # Install dependencies in the new worktree
   echo ""
   echo "Installing dependencies..."
   install_deps "$abs_path"
-  
+
   echo ""
   echo "✅ Worktree ready!"
   echo ""
@@ -245,17 +247,17 @@ list_worktrees() {
       else
         name="${branch#agent/}"
       fi
-      
+
       # Check for uncommitted changes
       local status=$(git -C "$path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
       local changes=""
       if [ "$status" -gt 0 ]; then
         changes=" (${status} uncommitted)"
       fi
-      
+
       # Get worktree creation time
       local created=$(get_created_time "$path")
-      
+
       # Get commits ahead of base (main/HEAD when created)
       local commits_ahead=$(git -C "$path" rev-list --count HEAD ^"$commit" 2>/dev/null || echo "0")
       local activity=""
@@ -265,14 +267,16 @@ list_worktrees() {
       else
         activity="No commits yet${changes}"
       fi
-      
+
       # Check if branch has been merged into main
       local merged=""
       local main_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
-      if git branch --merged "$main_branch" 2>/dev/null | grep -q "$branch"; then
+      if [ "$commits_ahead" -eq 0 ] && git branch --merged "$main_branch" 2>/dev/null | grep -q "$branch"; then
+        merged="⚠️  No changes on this worktree - hasn't created anything yet"
+      elif git branch --merged "$main_branch" 2>/dev/null | grep -q "$branch"; then
         merged="✅ MERGED - safe to remove"
       fi
-      
+
       echo "│                                                                             │"
       printf "│  %-73s │\n" "📁 $name"
       printf "│     %-69s │\n" "Branch:   $branch"
@@ -285,13 +289,13 @@ list_worktrees() {
       fi
     fi
   done < <(git worktree list)
-  
+
   if [ "$found" -eq 0 ]; then
     echo "│                                                                             │"
     echo "│  No agent worktrees found.                                                  │"
     echo "│  Create one with: agent-worktree create <name>                               │"
   fi
-  
+
   echo "│                                                                             │"
   echo "└─────────────────────────────────────────────────────────────────────────────┘"
   echo ""
@@ -303,10 +307,10 @@ remove_worktree() {
     echo "Error: Please specify worktree name"
     exit 1
   fi
-  
+
   local abs_path="${WORKTREES_DIR}/${REPO_NAME}-${name}"
   local branch="agent/${name}"
-  
+
   echo "Removing worktree: $name"
   git worktree remove "$abs_path" --force 2>/dev/null || true
   git branch -D "$branch" 2>/dev/null || true
@@ -329,31 +333,31 @@ clean_worktrees() {
 
 # Main
 case "${1:-}" in
-  create)
-    shift
-    create_worktree "$@"
-    ;;
-  list)
-    list_worktrees
-    ;;
-  remove)
-    remove_worktree "$2"
-    ;;
-  clean)
-    clean_worktrees
-    ;;
-  upgrade)
-    upgrade
-    ;;
-  version|-v|--version)
-    echo "agent-worktree v$VERSION"
-    new_version=$(check_update)
-    if [ -n "$new_version" ]; then
-      echo "Update available: v$new_version (run 'agent-worktree upgrade')"
-    fi
-    ;;
-  *)
-    usage
-    exit 1
-    ;;
+create)
+  shift
+  create_worktree "$@"
+  ;;
+list)
+  list_worktrees
+  ;;
+remove)
+  remove_worktree "$2"
+  ;;
+clean)
+  clean_worktrees
+  ;;
+upgrade)
+  upgrade
+  ;;
+version | -v | --version)
+  echo "agent-worktree v$VERSION"
+  new_version=$(check_update)
+  if [ -n "$new_version" ]; then
+    echo "Update available: v$new_version (run 'agent-worktree upgrade')"
+  fi
+  ;;
+*)
+  usage
+  exit 1
+  ;;
 esac
